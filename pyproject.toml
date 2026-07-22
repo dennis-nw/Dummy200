@@ -1,0 +1,16 @@
+[project]
+name = "dummy200"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.139.1",
+    "uvicorn>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.22",
+    "ty>=0.0.62",
+]
