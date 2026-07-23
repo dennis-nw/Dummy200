@@ -12,6 +12,8 @@ A small FastAPI app that fakes health endpoints for testing [Still200](https://d
 | `GET /health/slow` | slow but responds within the poll timeout |
 | `GET /health/timeout` | never responds in time (trips Still200's fixed timeout) |
 | `GET /health/flaky` | randomly healthy or unhealthy per request |
+| `GET /health/error` | responds `503` instead of `200` |
+| `GET /health/crash` | unhandled exception → `500`, non-JSON body |
 
 `GET /` lists the available scenarios.
 

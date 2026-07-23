@@ -22,7 +22,7 @@ faked.
 import asyncio
 import random
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 SERVICE_NAME = "Dummy200"
 
@@ -56,6 +56,8 @@ async def root() -> dict:
             "/health/slow",
             "/health/timeout",
             "/health/flaky",
+            "/health/error",
+            "/health/crash",
         ],
     }
 
@@ -152,3 +154,25 @@ async def flaky() -> dict:
             "cache": check("healthy", 2.0),
         }
     )
+
+
+@app.get("/health/error")
+async def error() -> dict:
+    """Responds with HTTP 503 instead of 200.
+
+    Still200 treats any non-200 status as a failure regardless of the body (note:
+    this differs from its integration guide, which claims status codes are
+    ignored). Complements /health/unhealthy, which reports failure via the body.
+    """
+    raise HTTPException(status_code=503, detail="service unavailable")
+
+
+@app.get("/health/crash")
+async def crash() -> dict:
+    """Raises an unhandled exception, simulating a bug in the health check itself.
+
+    FastAPI turns this into a 500 with a plain-text "Internal Server Error" body —
+    so unlike /health/error, there's no parseable JSON at all. Tests how Still200
+    handles a crashed endpoint that returns neither a valid status nor a body.
+    """
+    raise RuntimeError("unexpected error while collecting checks")
