@@ -6,6 +6,7 @@ A small FastAPI app that fakes health endpoints for testing [Still200](https://d
 
 | Route | Simulates |
 |---|---|
+| `GET /health/ping` | bare `200`, no `checks` (simplest integration) |
 | `GET /health/healthy` | all dependencies green |
 | `GET /health/degraded` | slow cache + intermittent soft errors |
 | `GET /health/unhealthy` | a hard dependency failure |
@@ -14,6 +15,7 @@ A small FastAPI app that fakes health endpoints for testing [Still200](https://d
 | `GET /health/flaky` | randomly healthy or unhealthy per request |
 | `GET /health/error` | responds `503` instead of `200` |
 | `GET /health/crash` | unhandled exception → `500`, non-JSON body |
+| `GET /health/malformed` | `200` but body is invalid JSON |
 
 `GET /` lists the available scenarios.
 

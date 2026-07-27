@@ -22,7 +22,7 @@ faked.
 import asyncio
 import random
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 
 SERVICE_NAME = "Dummy200"
 
@@ -50,6 +50,7 @@ async def root() -> dict:
     return {
         "service": SERVICE_NAME,
         "scenarios": [
+            "/health/ping",
             "/health/healthy",
             "/health/degraded",
             "/health/unhealthy",
@@ -58,8 +59,19 @@ async def root() -> dict:
             "/health/flaky",
             "/health/error",
             "/health/crash",
+            "/health/malformed",
         ],
     }
+
+
+@app.get("/health/ping")
+async def ping() -> dict:
+    """Simplest possible integration — a bare 200 with no `checks`.
+
+    Represents a user who just points Still200 at an existing endpoint. With no
+    body to inspect, Still200 has only the 200 status to go on, which reads as up.
+    """
+    return {"status": "ok"}
 
 
 @app.get("/health/healthy")
@@ -176,3 +188,17 @@ async def crash() -> dict:
     handles a crashed endpoint that returns neither a valid status nor a body.
     """
     raise RuntimeError("unexpected error while collecting checks")
+
+
+@app.get("/health/malformed")
+async def malformed() -> Response:
+    """Returns HTTP 200 and Content-Type application/json, but a body that isn't
+    valid JSON (truncated mid-object).
+
+    Tests how the pinger handles a parse failure on an otherwise-successful
+    response — e.g. does it treat unparseable JSON as down, or crash on it?
+    """
+    return Response(
+        content='{"service_name": "Dummy200", "checks": {',
+        media_type="application/json",
+    )
