@@ -155,26 +155,39 @@ async def timeout() -> dict:
     return health({"database": check(14.0)})  # never actually reached
 
 
+FLAKY_DEPENDENCIES = ("database", "cache", "payment_gateway", "message_queue")
+
+FLAKY_ERRORS = (
+    "connection reset by peer",
+    "connection refused (timeout after 5s)",
+    "connection pool exhausted",
+    "read timeout after 3000ms",
+    "TLS handshake failed",
+    "DNS resolution failed",
+    "unexpected EOF from upstream",
+    "503 Service Unavailable from upstream",
+)
+
+
 @app.get("/health/flaky")
 async def flaky() -> dict:
-    """Randomly healthy or unhealthy per request.
+    """Randomly healthy or unhealthy per request, with a different failure each time.
 
     Good for exercising Still200's consecutive-failure threshold — a single blip
-    shouldn't alert, but a run of failures should.
+    shouldn't alert, but a run of failures should. On failure, a random dependency
+    reports a random error, so no two failures look alike.
     """
+    checks = {
+        name: check(round(random.uniform(1.0, 20.0), 1)) for name in FLAKY_DEPENDENCIES
+    }
     if random.random() < 0.5:
-        return health(
-            {
-                "database": check(13.7),
-                "cache": check(2.0),
-            }
-        )
-    return health(
-        {
-            "database": check(3000.0, "connection reset by peer"),
-            "cache": check(2.0),
-        }
+        return health(checks)
+
+    failed = random.choice(FLAKY_DEPENDENCIES)
+    checks[failed] = check(
+        round(random.uniform(1000.0, 5000.0), 1), random.choice(FLAKY_ERRORS)
     )
+    return health(checks)
 
 
 @app.get("/health/error")
