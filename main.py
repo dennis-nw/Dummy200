@@ -1,18 +1,24 @@
 """Dummy API for testing Still200's uptime monitoring.
 
-Still200 polls a GET health endpoint, always expects an HTTP 200, and reads the
-real status from the JSON body:
+Still200 polls a GET health endpoint, always expects an HTTP 200, and reads each
+dependency's condition from the JSON body:
 
     {
       "service_name": "string",
       "checks": {
         "<dependency>": {
-          "status": "healthy|degraded|unhealthy",
           "latency_ms": number,
           "error": "string (optional)"
         }
       }
     }
+
+Each check reports only facts — how long the call took and whether it errored.
+Still200 derives the healthy/degraded/unhealthy status itself:
+
+    no error, low latency   -> healthy
+    no error, high latency  -> degraded
+    error present           -> unhealthy
 
 Each route below simulates a different scenario so you can point Still200 at it
 and verify how it classifies and alerts. No real DB/Redis — every dependency is
@@ -31,9 +37,13 @@ app = FastAPI(
 )
 
 
-def check(status: str, latency_ms: float, error: str | None = None) -> dict:
-    """Build a single dependency check, omitting `error` when there isn't one."""
-    result: dict = {"status": status, "latency_ms": round(latency_ms, 1)}
+def check(latency_ms: float, error: str | None = None) -> dict:
+    """Build a single dependency check, omitting `error` when there isn't one.
+
+    Still200 derives status from these fields: an `error` reads as unhealthy, a
+    high `latency_ms` with no error reads as degraded, otherwise healthy.
+    """
+    result: dict = {"latency_ms": round(latency_ms, 1)}
     if error is not None:
         result["error"] = error
     return result
@@ -79,23 +89,25 @@ async def healthy() -> dict:
     """Everything green — every dependency reachable and fast."""
     return health(
         {
-            "database": check("healthy", 12.4),
-            "cache": check("healthy", 1.8),
-            "payment_gateway": check("healthy", 88.0),
+            "database": check(12.4),
+            "cache": check(1.8),
+            "payment_gateway": check(88.0),
         }
     )
 
 
 @app.get("/health/degraded")
 async def degraded() -> dict:
-    """Reachable but unwell — slow cache and a soft error from an upstream."""
+    """Reachable but slow — elevated latency on two dependencies, no errors.
+
+    Degraded is now purely a latency signal (an error would read as unhealthy),
+    so these latencies sit clearly above the ~500ms guideline.
+    """
     return health(
         {
-            "database": check("healthy", 15.2),
-            "cache": check("degraded", 620.5),
-            "payment_gateway": check(
-                "degraded", 430.0, "intermittent 5xx from upstream (soft errors)"
-            ),
+            "database": check(15.2),
+            "cache": check(620.5),
+            "payment_gateway": check(1280.0),
         }
     )
 
@@ -105,11 +117,9 @@ async def unhealthy() -> dict:
     """A hard dependency failure — Still200 should classify this as unhealthy."""
     return health(
         {
-            "database": check(
-                "unhealthy", 5001.0, "connection refused (timeout after 5s)"
-            ),
-            "cache": check("healthy", 2.1),
-            "payment_gateway": check("healthy", 91.3),
+            "database": check(5001.0, "connection refused (timeout after 5s)"),
+            "cache": check(2.1),
+            "payment_gateway": check(91.3),
         }
     )
 
@@ -123,13 +133,12 @@ async def slow() -> dict:
     Still200 still gets a `checks` body. Contrast with /health/timeout, which
     never responds in time.
     """
-    delay_s = 1.5
-    await asyncio.sleep(delay_s)
+    await asyncio.sleep(1.5)
     return health(
         {
-            "database": check("healthy", 14.0),
-            "cache": check("healthy", 2.4),
-            "report_builder": check("healthy", delay_s * 1000),
+            "database": check(14.0),
+            "cache": check(2.4),
+            "report_builder": check(130.0),
         }
     )
 
@@ -143,7 +152,7 @@ async def timeout() -> dict:
     received, so it must classify the target as down on its own.
     """
     await asyncio.sleep(10)
-    return health({"database": check("healthy", 14.0)})  # never actually reached
+    return health({"database": check(14.0)})  # never actually reached
 
 
 @app.get("/health/flaky")
@@ -156,14 +165,14 @@ async def flaky() -> dict:
     if random.random() < 0.5:
         return health(
             {
-                "database": check("healthy", 13.7),
-                "cache": check("healthy", 2.0),
+                "database": check(13.7),
+                "cache": check(2.0),
             }
         )
     return health(
         {
-            "database": check("unhealthy", 3000.0, "connection reset by peer"),
-            "cache": check("healthy", 2.0),
+            "database": check(3000.0, "connection reset by peer"),
+            "cache": check(2.0),
         }
     )
 

@@ -2,13 +2,15 @@
 
 A small FastAPI app that fakes health endpoints for testing [Still200](https://dennis-nw.github.io/still200-integration-guide/), an API uptime monitor. Each route simulates a scenario and returns Still200's health-check JSON (`200` + `service_name` + `checks`) — no real dependencies.
 
+Each check reports only `latency_ms` and an optional `error`; Still200 derives the status itself — `error` ⇒ unhealthy, high latency (no error) ⇒ degraded, otherwise healthy.
+
 ## Routes
 
 | Route | Simulates |
 |---|---|
 | `GET /health/ping` | bare `200`, no `checks` (simplest integration) |
 | `GET /health/healthy` | all dependencies green |
-| `GET /health/degraded` | slow cache + intermittent soft errors |
+| `GET /health/degraded` | elevated latency, no errors (derives degraded) |
 | `GET /health/unhealthy` | a hard dependency failure |
 | `GET /health/slow` | slow but responds within the poll timeout |
 | `GET /health/timeout` | never responds in time (trips Still200's fixed timeout) |
