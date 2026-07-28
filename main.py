@@ -49,9 +49,11 @@ def check(latency_ms: float, error: str | None = None) -> dict:
     return result
 
 
-def health(checks: dict) -> dict:
+def health(checks: dict | None) -> dict:
     """Wrap dependency checks in the envelope Still200 expects."""
-    return {"service_name": SERVICE_NAME, "checks": checks}
+    if checks is not None:
+        return {"service_name": SERVICE_NAME, "checks": checks}
+    return {"service_name": SERVICE_NAME}
 
 
 @app.get("/")
@@ -79,9 +81,9 @@ async def ping() -> dict:
     """Simplest possible integration — a bare 200 with no `checks`.
 
     Represents a user who just points Still200 at an existing endpoint. With no
-    body to inspect, Still200 has only the 200 status to go on, which reads as up.
+    `checks` to inspect, Still200 has only the 200 status to go on, which reads as up.
     """
-    return {"status": "ok"}
+    return health(checks=None)
 
 
 @app.get("/health/healthy")
