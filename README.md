@@ -21,6 +21,33 @@ Each check reports only `latency_ms` and an optional `error`; Still200 derives t
 
 `GET /` lists the available scenarios.
 
+## Webhooks → incident.io
+
+`POST /webhooks/still200` receives Still200's incident webhooks and relays them to an [incident.io HTTP alert source](https://docs.incident.io/api-reference). `incident.started` opens an alert (`firing`) and `incident.resolved` closes it (`resolved`). Both use the Still200 incident id as the `deduplication_key`, so they hit the same alert.
+
+Every request must carry a valid [`Still200-Webhook-Signature`](https://docs.still200.com/webhooks/signatures) header (HMAC-SHA256 over `<timestamp>.<raw body>`, with a timestamp within 5 minutes). Missing, malformed, stale or wrong signatures get `401`.
+
+Configure it with environment variables:
+
+| Variable | Value |
+|---|---|
+| `STILL200_WEBHOOK_SECRET` | the webhook's signing secret (`s200_whsec_…`). **Required:** without it every request gets `503` |
+| `INCIDENT_IO_ALERT_SOURCE_ID` | the alert source config id from the source's URL |
+| `INCIDENT_IO_TOKEN` | the source's secret token |
+
+When either incident.io variable is unset, the endpoint runs as a dry run: it returns the translated alert without sending it. Test events (`"test": true`) and unknown event types are also acknowledged with `202` and not forwarded. If incident.io rejects an event or can't be reached, the endpoint responds `502`.
+
+## Layout
+
+```
+main.py             # builds the app and mounts the routers
+config.py           # shared settings (service name, incident.io credentials)
+routes/health.py    # /health/* scenarios
+routes/webhooks.py  # /webhooks/* Still200 → incident.io relay
+```
+
+New groups of endpoints get their own module in `routes/` and one `include_router` line in `main.py`.
+
 ## Run
 
 ```sh
